@@ -11,6 +11,45 @@ feature set deliberately small, aiming for a faster, simpler user experience.
 
 Its scope is limited to library management, USB exporting, and PRO DJ LINK.
 
+## Download this fork (Apple Silicon)
+
+Download the latest [Apple Silicon DMG](https://github.com/einaralex/rbxporteng/releases/latest/download/rbxport-apple-silicon.dmg) from the [fork's GitHub Releases](https://github.com/einaralex/rbxporteng/releases/latest). Open it and drag rbxport to Applications. Every merge to this fork's `main` builds a new DMG and makes it the latest GitHub release. The app links to that release for updates; it does not install them automatically.
+
+The DMG is currently unsigned and unnotarized. If macOS blocks its first launch, open System Settings → Privacy & Security and choose **Open Anyway** after trying to open it. [Apple explains this step](https://support.apple.com/en-ie/102445). Engine DJ must be installed to use Engine USB preparation; other rbxport features do not require it.
+
+## Engine DJ preparation in this fork
+
+Enable **Preferences → USB Export → Prepare USB for Engine DJ after export**.
+After a successful, verified Rekordbox export, this fork runs
+[`rekordbox-to-engine`](https://github.com/einaralex/rb-engine) on that USB. This applies
+to Sync Manager, playlist/folder export, and track export. Automatic eject
+waits for Engine preparation to succeed. The option is off by default.
+
+Install Engine DJ on macOS. The app includes the Rust preparation code and
+its SQLCipher/SQLite dependencies in the macOS build. Leave the external
+helper field blank to use that built-in integration. No separate helper or SQL
+command-line tools are required. The field can still point to a compatible
+external helper executable for development.
+
+The preparation workflow requires a modern OneLibrary export. A repeat export
+can refresh an Engine Library created by this helper if its main database has
+not changed. Unknown or modified Engine libraries are left alone unless you
+confirm replacement in rbxport; Engine-side edits are not merged. The external helper override
+still requires a USB without an Engine Library. The app checks for Engine DJ
+and whether the library can be refreshed before it writes the Rekordbox export.
+If analysis fails, the previous Engine Library directory remains in place. The
+Rekordbox export has already completed, so audio removed by that export may no
+longer be available to the previous Engine library. The app reports the error
+and prevents automatic eject. Preparation is shown as a
+separate busy stage; cancellation is unavailable during that stage.
+
+The integration tests use disposable directories. The ignored
+`bundled_engine_prepares_a_disposable_rekordbox_export` test also runs the
+installed OfflineAnalyzer on generated click tracks across three exports: first,
+added-track, and removed-track. It passed locally with
+Engine DJ Desktop 5.1.0.2acfe893c4. These checks do not establish playback
+compatibility on Engine DJ hardware.
+
 ## Project vision
 
 The core vision of rbxport is **fewer features**.

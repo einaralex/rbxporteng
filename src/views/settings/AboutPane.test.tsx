@@ -87,9 +87,23 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   __setBackend(null);
+  vi.unstubAllEnvs();
 });
 
 describe("AboutPane › Updates", () => {
+  it("links fork builds to GitHub instead of checking the upstream updater", async () => {
+    vi.stubEnv("VITE_FORK_DOWNLOADS", "1");
+    mount();
+    await settle();
+    expect(section().textContent).toContain("this fork does not install updates automatically");
+    const button = Array.from(section().querySelectorAll("button")).find((candidate) => candidate.textContent === "Download latest Apple Silicon build");
+    act(() => button?.click());
+    await settle();
+    expect(openUrl).toHaveBeenCalledWith("https://github.com/einaralex/rbxporteng/releases/latest");
+    expect(checkForUpdate).not.toHaveBeenCalled();
+    expect(section().querySelector('input[role="switch"]')).toBeNull();
+  });
+
   it("offers a support link below automatic updates", async () => {
     mount();
     await settle();

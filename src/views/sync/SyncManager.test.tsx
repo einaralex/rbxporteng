@@ -435,10 +435,10 @@ describe("SyncManager", () => {
     expect(meter?.dataset.state).toBe("failed");
     expect(host.querySelector('[role="alert"]')?.textContent).toBe("Device disconnected");
   });
-  it("passes cleanup and the chosen compatibility format to sync", async () => {
+  it("passes cleanup, compatibility and Engine preparation options to sync", async () => {
     const preferences = { ...DEFAULT_PREFERENCES, advanced: { ...DEFAULT_PREFERENCES.advanced, protectLibrary: false }, usbExport: {
       ...DEFAULT_PREFERENCES.usbExport, deleteUnlistedMusic: true,
-      maximumCompatibility: true, conversionFormat: "mp3" as const,
+      maximumCompatibility: true, conversionFormat: "mp3" as const, prepareEngine: true, engineExecutable: "/tmp/rb-engine",
     } };
     act(() => root.render(<PreferencesProvider value={{ preferences, update: vi.fn(), reset: vi.fn() }}>
       <SyncManager onClose={onClose} />
@@ -449,7 +449,7 @@ describe("SyncManager", () => {
     await settle();
     click(host.querySelector<HTMLButtonElement>('button[aria-label="SYNC"]'));
     await settle();
-    expect(syncDevices.mock.calls[0]?.slice(5)).toEqual([true, "mp3", false]);
+    expect(syncDevices.mock.calls[0]?.slice(5)).toEqual([true, "mp3", false, "/tmp/rb-engine"]);
   });
 
   it("lists the playlists and folders under rekordbox's [Playlists] row, not All Tracks", () => {

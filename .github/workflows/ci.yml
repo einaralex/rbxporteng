@@ -29,7 +29,9 @@ permissions:
 jobs:
   changes:
     name: Detect affected validation lanes
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # This fork uses the hosted Apple Silicon workflow. The upstream fleet is
+    # not available here, so never queue its self-hosted validation jobs.
+    if: github.repository != 'einaralex/rbxporteng' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, linux, x64]
     outputs:
       base_ref: ${{ steps.paths.outputs.base_ref }}
@@ -83,7 +85,7 @@ jobs:
     # A fork's token is read-only and must never be used to modify its branch.
     # Same-repository PRs get deterministic Clippy rewrites and English locale
     # fallbacks, then this run validates the resulting exact SHA.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.repository != 'einaralex/rbxporteng' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     needs: changes
     runs-on: [self-hosted, linux, x64]
     outputs:
@@ -184,7 +186,7 @@ jobs:
     # GITHUB_TOKEN pushes do not start another workflow run. Validate the SHA
     # written by autofix here, and never execute untrusted fork code on ARC.
     if: >-
-      always() && needs.changes.result == 'success' &&
+      always() && github.repository != 'einaralex/rbxporteng' && needs.changes.result == 'success' &&
       (needs.autofix.result == 'success' || needs.autofix.result == 'skipped') &&
       (github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository)

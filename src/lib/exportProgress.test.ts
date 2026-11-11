@@ -23,13 +23,15 @@ describe("export stage feedback", () => {
     expect(formatElapsed(3_725_000)).toBe("1:02:05");
   });
   it("never invents a percentage for database, recovery, or publication", () => {
-    for (const state of ["database", "recovering", "verifying", "publishing", "finalizing"] as const) {
+    for (const state of ["database", "recovering", "verifying", "publishing", "finalizing", "engine"] as const) {
       expect(stagePercent({ ...job, state, done: 4 })).toBeUndefined();
       expect(isExportActive({ ...job, state })).toBe(true);
     }
   });
   it("disables stopping once publication has started", () => {
     expect(canStopExport({ ...job, state: "publishing", canCancel: false })).toBe(false);
+    expect(canStopExport({ ...job, state: "engine", canCancel: false })).toBe(false);
+    expect(stageLabel({ ...job, state: "engine" }, text => text)).toBe("Preparing USB for Engine DJ");
     expect(canStopExport({ ...job, canCancel: true })).toBe(true);
   });
   it("shows a full stage without declaring the export finished", () => {

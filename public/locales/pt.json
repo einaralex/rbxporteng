@@ -1748,5 +1748,9 @@
   "Export a playlist to a file for music apps (*.m3u8)": "Exportar uma lista de reprodução para um ficheiro para aplicações de música (*.m3u8)",
   "[data-browser-pane]": "[data-browser-pane]",
   "input, textarea, select, [contenteditable=\"true\"]": "input, textarea, select, [contenteditable=\"true\"]",
-  "'{title}' has cue points added or changed on a player, and this sync would take it off the USB. Keep a playlist that holds it in the sync, or delete the track from the USB in rekordbox, then sync again.": "'{title}' has cue points added or changed on a player, and this sync would take it off the USB. Keep a playlist that holds it in the sync, or delete the track from the USB in rekordbox, then sync again."
+  "'{title}' has cue points added or changed on a player, and this sync would take it off the USB. Keep a playlist that holds it in the sync, or delete the track from the USB in rekordbox, then sync again.": "'{title}' has cue points added or changed on a player, and this sync would take it off the USB. Keep a playlist that holds it in the sync, or delete the track from the USB in rekordbox, then sync again.",
+  "Prepare USB for Engine DJ after export": "Prepare USB for Engine DJ after export",
+  "Preparing USB for Engine DJ": "Preparing USB for Engine DJ",
+  "Run Engine DJ analysis after the Rekordbox export finishes, before ejecting. Requires macOS and Engine DJ. Unchanged USB libraries created by this app refresh automatically; otherwise, you will be asked before replacement.": "Run Engine DJ analysis after the Rekordbox export finishes, before ejecting. Requires macOS and Engine DJ. Unchanged USB libraries created by this app refresh automatically; otherwise, you will be asked before replacement.",
+  "External helper executable override (optional)": "External helper executable override (optional)"
 }

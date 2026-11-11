@@ -1973,6 +1973,7 @@ fn export_track_puts_a_track_on_a_stick_by_itself_and_a_sync_keeps_it_there() {
         stick.path().display().to_string(),
         None,
         None,
+        None,
     ))
     .unwrap();
     assert_eq!((written.tracks, written.playlists), (1, 0));
@@ -1986,6 +1987,7 @@ fn export_track_puts_a_track_on_a_stick_by_itself_and_a_sync_keeps_it_there() {
         s.state(),
         vec![playlist_id(1)],
         vec![stick.path().display().to_string()],
+        None,
         None,
         None,
         None,
@@ -2010,6 +2012,7 @@ fn export_track_puts_a_track_on_a_stick_by_itself_and_a_sync_keeps_it_there() {
         stick.path().display().to_string(),
         None,
         None,
+        None,
     ))
     .unwrap();
     assert_eq!((again.tracks, again.playlists, again.removed), (2, 1, 0));
@@ -2023,7 +2026,7 @@ fn export_track_puts_a_track_on_a_stick_by_itself_and_a_sync_keeps_it_there() {
     let unrelated_bytes = std::fs::read(&unrelated).unwrap();
     for single_playlist in [false, true] {
         run(commands::export_tracks_to_device(
-            s.handle(), s.state(), vec![second.clone()], stick.path().display().to_string(), None, None,
+            s.handle(), s.state(), vec![second.clone()], stick.path().display().to_string(), None, None, None,
         )).unwrap();
         let before = rbl_export::Manifest::load(stick.path()).unwrap();
         let loose = before.tracks.iter().find(|t| t.library_id.to_string() == second).unwrap();
@@ -2032,12 +2035,12 @@ fn export_track_puts_a_track_on_a_stick_by_itself_and_a_sync_keeps_it_there() {
         assert!(loose_audio.exists());
         let cleaned = if single_playlist {
             run(commands::export_playlist(
-                s.handle(), s.state(), playlist_id(1), stick.path().display().to_string(), None, Some(true), None,
+                s.handle(), s.state(), playlist_id(1), stick.path().display().to_string(), None, Some(true), None, None,
             )).unwrap()
         } else {
             run(commands::sync_devices(
                 s.handle(), s.state(), vec![playlist_id(1)], vec![stick.path().display().to_string()],
-                None, None, None, Some(true), None, None,
+                None, None, None, Some(true), None, None, None,
             )).unwrap().remove(0).report.unwrap()
         };
         assert_eq!((cleaned.tracks, cleaned.playlists, cleaned.removed), (1, 1, 1));
@@ -2071,7 +2074,7 @@ fn a_stick_pulled_during_a_sync_is_reported_as_disconnected() {
         }
     });
     let reports = run(commands::sync_devices(
-        s.handle(), s.state(), vec![playlist_id(1)], vec![mount.display().to_string()], None, None, None, None, None, None,
+        s.handle(), s.state(), vec![playlist_id(1)], vec![mount.display().to_string()], None, None, None, None, None, None, None,
     ))
     .unwrap();
     let error = reports[0].error.as_deref().expect("the sync failed");
@@ -2127,6 +2130,7 @@ fn a_sync_writes_the_same_playlists_to_every_stick_and_each_stick_remembers_them
         None,
         Some(true),
         Some(true),
+        None,
         None,
         None,
         None,
@@ -2204,7 +2208,7 @@ fn exporting_a_folder_writes_the_folder_with_its_playlists_inside() {
 
     let stick = tempfile::tempdir().unwrap();
     let written = run(commands::export_playlist(
-        s.handle(), s.state(), set.id.clone(), stick.path().display().to_string(), None, None, None,
+        s.handle(), s.state(), set.id.clone(), stick.path().display().to_string(), None, None, None, None,
     ))
     .unwrap();
     assert_eq!(written.tracks, 1, "one track, however many playlists hold it");
@@ -2470,4 +2474,123 @@ fn a_folder_dropped_on_the_playlists_root_becomes_a_playlist() {
     .unwrap();
     assert!(!loose.folder);
     assert_eq!(loose.playlist, None);
+}
+
+
+#[test]
+#[cfg(target_os = "macos")]
+fn engine_preparation_runs_after_usb_publication_and_failure_prevents_eject() {
+    use std::os::unix::fs::PermissionsExt;
+    let s = shell();
+    let audio = s._dir.path().join("Engine track.wav");
+    write_wav(&audio, 2);
+    let imported = run(commands::import_files(s.handle(), s.state(), vec![audio.display().to_string()])).unwrap();
+    run(commands::create_playlist(s.handle(), s.state(), "Engine set".into(), ROOT.into(), None)).unwrap();
+    let playlist = run(commands::playlist_tree(s.state())).unwrap().into_iter().find(|p| p.name == "Engine set").unwrap().id;
+    run(commands::add_tracks_to_playlist(s.handle(), s.state(), playlist.clone(), vec![imported.tracks[0].id.clone()], None)).unwrap();
+    let stick = tempfile::tempdir().unwrap();
+    let executable = s._dir.path().join("fake rb-engine");
+    std::fs::write(&executable, r#"#!/bin/sh
+set -eu
+test "$1" = --target
+test -f "$2/PIONEER/rekordbox/exportLibrary.db" || test -f "$2/.PIONEER/rekordbox/exportLibrary.db"
+mkdir "$2/Engine Library"
+"#).unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let stages = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&stages);
+    s.app.listen("export:progress", move |event| {
+        let progress: serde_json::Value = serde_json::from_str(event.payload()).unwrap();
+        seen.lock().unwrap().push(progress["state"].as_str().unwrap().to_owned());
+    });
+    let destination = stick.path().display().to_string();
+    let worker = executable.display().to_string();
+    let report = run(commands::export_playlist(s.handle(), s.state(), playlist.clone(), destination.clone(), None, None, None, Some(worker.clone()))).unwrap();
+    assert!(report.verified);
+    assert!(stick.path().join("Engine Library").is_dir());
+    let seen = stages.lock().unwrap().clone();
+    let engine = seen.iter().position(|stage| stage == "engine").unwrap();
+    assert!(seen[..engine].iter().any(|stage| stage == "finalizing"));
+    assert!(!seen[..engine].iter().any(|stage| stage == "done"));
+    assert_eq!(seen.last().unwrap(), "done");
+
+    // A second export cannot update the Engine library. Even with eject
+    // selected, reject it before touching the Rekordbox export.
+    let rekordbox_db = ["PIONEER", ".PIONEER"].into_iter()
+        .map(|folder| stick.path().join(folder).join("rekordbox/exportLibrary.db"))
+        .find(|path| path.is_file()).unwrap();
+    let before = std::fs::read(&rekordbox_db).unwrap();
+    let reports = run(commands::sync_devices(s.handle(), s.state(), vec![playlist], vec![destination], None, None, Some(true), None, None, None, Some(worker))).unwrap();
+    assert!(!reports[0].ejected);
+    assert!(reports[0].error.as_deref().unwrap().contains("Engine DJ preparation cannot start: Engine Library already exists"));
+    assert!(stick.path().join("Engine Library").is_dir());
+    assert_eq!(std::fs::read(rekordbox_db).unwrap(), before);
+    assert_eq!(stages.lock().unwrap().last().unwrap(), "failed");
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn missing_engine_helper_rejects_export_before_writing_usb() {
+    let s = shell();
+    let audio = s._dir.path().join("Engine track.wav");
+    write_wav(&audio, 2);
+    let imported = run(commands::import_files(s.handle(), s.state(), vec![audio.display().to_string()])).unwrap();
+    run(commands::create_playlist(s.handle(), s.state(), "Engine set".into(), ROOT.into(), None)).unwrap();
+    let playlist = run(commands::playlist_tree(s.state())).unwrap().into_iter().find(|p| p.name == "Engine set").unwrap().id;
+    run(commands::add_tracks_to_playlist(s.handle(), s.state(), playlist.clone(), vec![imported.tracks[0].id.clone()], None)).unwrap();
+    let stick = tempfile::tempdir().unwrap();
+    let missing = s._dir.path().join("missing-helper");
+    let result = run(commands::export_playlist(s.handle(), s.state(), playlist, stick.path().display().to_string(), None, None, None, Some(missing.display().to_string())));
+    assert!(result.unwrap_err().full_message().contains("External Engine helper was not found"));
+    assert!(!stick.path().join("PIONEER").exists());
+    assert!(!stick.path().join(".PIONEER").exists());
+}
+
+/// Exercises the bundled Rust path with the locally installed Engine DJ
+/// analyzer and a disposable, generated 120 BPM WAV. No installed library or
+/// physical USB is read or written.
+#[test]
+#[ignore = "requires Engine DJ Desktop's OfflineAnalyzer on macOS"]
+#[cfg(target_os = "macos")]
+fn bundled_engine_prepares_a_disposable_rekordbox_export() {
+    let s = shell();
+    let audio = s._dir.path().join("Generated click.wav");
+    write_wav(&audio, 30);
+    let mut bytes = std::fs::read(&audio).unwrap();
+    for frame in 0..(RATE as usize * 30) {
+        let click = frame % (RATE as usize / 2);
+        if click < RATE as usize / 50 {
+            let sample = (12_000_i32 * (RATE as usize / 50 - click) as i32 / (RATE as i32 / 50)) as i16;
+            let offset = 44 + frame * 4;
+            bytes[offset..offset + 2].copy_from_slice(&sample.to_le_bytes());
+            bytes[offset + 2..offset + 4].copy_from_slice(&sample.to_le_bytes());
+        }
+    }
+    std::fs::write(&audio, bytes).unwrap();
+    let imported = run(commands::import_files(s.handle(), s.state(), vec![audio.display().to_string()])).unwrap();
+    run(commands::create_playlist(s.handle(), s.state(), "Engine click".into(), ROOT.into(), None)).unwrap();
+    let playlist = run(commands::playlist_tree(s.state())).unwrap().into_iter().find(|p| p.name == "Engine click").unwrap().id;
+    run(commands::add_tracks_to_playlist(s.handle(), s.state(), playlist.clone(), vec![imported.tracks[0].id.clone()], None)).unwrap();
+    let stick = tempfile::tempdir().unwrap();
+    let result = run(commands::export_playlist(s.handle(), s.state(), playlist.clone(), stick.path().display().to_string(), None, None, None, Some(String::new())));
+    assert!(result.is_ok(), "{}", result.err().map_or_else(String::new, |e| e.full_message()));
+    let report = rekordbox_to_engine::engine::verify_engine(stick.path()).unwrap();
+    assert!(report.ok);
+    assert_eq!(report.tracks, 1);
+    let second_audio = s._dir.path().join("Second generated click.wav");
+    std::fs::copy(&audio, &second_audio).unwrap();
+    let second = run(commands::import_files(s.handle(), s.state(), vec![second_audio.display().to_string()])).unwrap();
+    run(commands::add_tracks_to_playlist(s.handle(), s.state(), playlist.clone(), vec![second.tracks[0].id.clone()], None)).unwrap();
+    let result = run(commands::export_playlist(s.handle(), s.state(), playlist.clone(), stick.path().display().to_string(), None, None, None, Some(String::new())));
+    assert!(result.is_ok(), "{}", result.err().map_or_else(String::new, |e| e.full_message()));
+    let refreshed = rekordbox_to_engine::engine::verify_engine(stick.path()).unwrap();
+    assert!(refreshed.ok);
+    assert_eq!(refreshed.tracks, 2);
+
+    run(commands::remove_tracks_from_playlist(s.handle(), s.state(), playlist.clone(), vec![imported.tracks[0].id.clone()])).unwrap();
+    let result = run(commands::export_playlist(s.handle(), s.state(), playlist, stick.path().display().to_string(), None, None, None, Some(String::new())));
+    assert!(result.is_ok(), "{}", result.err().map_or_else(String::new, |e| e.full_message()));
+    let refreshed = rekordbox_to_engine::engine::verify_engine(stick.path()).unwrap();
+    assert!(refreshed.ok);
+    assert_eq!(refreshed.tracks, 1);
 }

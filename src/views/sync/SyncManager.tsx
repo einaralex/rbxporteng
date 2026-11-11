@@ -218,6 +218,7 @@ export function SyncManager({ windowed = false, onClose, onSynced, onReady, onOp
     : importKinds.length === 0 ? importBlockedNotes.join(" ")
     : t("Import {kinds} from the selected USB devices.", { kinds: IMPORT_KINDS.filter(({ kind }) => importKinds.includes(kind)).map(({ noun }) => t(noun)).join(", ") });
 
+  const engineExecutable = preferences.usbExport.prepareEngine ? preferences.usbExport.engineExecutable : undefined;
   const deleteUnlistedMusic = preferences.usbExport.deleteUnlistedMusic;
   const compatibilityFormat = preferences.usbExport.maximumCompatibility ? preferences.usbExport.conversionFormat : undefined;
   const verifyAll = preferences.usbExport.verifyAllFiles;
@@ -723,7 +724,7 @@ export function SyncManager({ windowed = false, onClose, onSynced, onReady, onOp
           if (progress.state === "ejecting") setStatus([t("Ejecting {device}…", { device: nameOf(progress.path) })]);
         });
         const reports: SyncDeviceReport[] = [
-          ...await backend.syncDevices(playlists, eligible, stickDefaults, false, ejectAfterSync, deleteUnlistedMusic, compatibilityFormat, verifyAll),
+          ...await backend.syncDevices(playlists, eligible, stickDefaults, false, ejectAfterSync, deleteUnlistedMusic, compatibilityFormat, verifyAll, engineExecutable),
           ...[...ineligible].map(([path, error]) => ({ path, error })),
         ];
         setCompletedReports(new Map(reports.flatMap(r => r.report ? [[r.path, r.report] as const] : [])));
@@ -767,7 +768,7 @@ export function SyncManager({ windowed = false, onClose, onSynced, onReady, onOp
         setOperation(null);
       }
     })();
-  }, [canSync, nodes, ticked, tickedDevices, estimates, stickDefaults, ejectAfterSync, deleteUnlistedMusic, compatibilityFormat, verifyAll, refreshDevices, readDevice, onSynced, t]);
+  }, [canSync, nodes, ticked, tickedDevices, estimates, stickDefaults, ejectAfterSync, deleteUnlistedMusic, compatibilityFormat, verifyAll, engineExecutable, refreshDevices, readDevice, onSynced, t]);
 
   /** One line for a cue import: what changed, and what already matched. */
   const cuesResult = (device: string, result: { tracks: number; skipped: number; unchanged?: number }) => {

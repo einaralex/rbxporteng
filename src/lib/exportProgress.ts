@@ -1,11 +1,11 @@
 import type { ExportProgress } from "@/ipc/types";
 
-const active = new Set(["preparing", "planning", "recovering", "checking", "converting", "copying", "database", "verifying", "publishing", "finalizing", "ejecting"]);
+const active = new Set(["preparing", "planning", "recovering", "checking", "converting", "copying", "database", "verifying", "publishing", "finalizing", "engine", "ejecting"]);
 export function isExportActive(job: ExportProgress): boolean { return active.has(job.state); }
 export function canStopExport(job: ExportProgress): boolean {
   return job.canCancel ?? ["preparing", "planning", "checking", "converting", "copying", "database"].includes(job.state);
 }
-const unmeasured = new Set(["recovering", "database", "verifying", "publishing", "finalizing", "ejecting", "failed", "cancelled"]);
+const unmeasured = new Set(["recovering", "database", "verifying", "publishing", "finalizing", "engine", "ejecting", "failed", "cancelled"]);
 /** How far through the current stage the export is, or undefined when the stage reports no measure. */
 export function stagePercent(job: ExportProgress): number | undefined {
   if (job.state === "done") return 100;
@@ -47,6 +47,7 @@ export function stageLabel(job: ExportProgress, t: Translate): string {
     case "verifying": return t("Verifying changed files and databases");
     case "publishing": return t("Saving verified export");
     case "finalizing": return t("Checking saved library and finishing");
+    case "engine": return t("Preparing USB for Engine DJ");
     case "ejecting": return t("Safely ejecting");
     case "done": return (job.warningsCount ?? 0) > 0 ? t("Export complete with warnings") : job.upToDate ? t("Already up to date") : t("Export complete");
     case "failed": return t("Export failed");

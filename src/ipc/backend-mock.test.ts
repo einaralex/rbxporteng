@@ -341,3 +341,35 @@ describe("mock File Created column (#308)", () => {
     expect([...known].sort((a, b) => a - b)).toEqual(known);
   });
 });
+
+describe("Engine preparation after USB export", () => {
+  it("prepares after copying and before automatic eject", async () => {
+    const backend = createMockBackend({ trackCount: 20 });
+    await backend.edits.createPlaylist("Engine set", TREE_ROOT);
+    const playlist = (await backend.playlistTree()).find(p => p.name === "Engine set")!.id;
+    await backend.edits.addTracksToPlaylist(playlist, ["100000"]);
+    const destination = (await backend.listDevices()).find(d => !d.export)!.path;
+    const stages: string[] = [];
+    backend.onExportProgress(p => stages.push(p.state));
+    backend.onSyncProgress(p => { if (p.state === "ejecting") stages.push("ejecting"); });
+    const reports = await backend.syncDevices([playlist], [destination], undefined, false, true, false, undefined, false, "");
+    expect(reports[0]?.ejected).toBe(true);
+    expect(stages.indexOf("engine")).toBeGreaterThan(stages.indexOf("copying"));
+    expect(stages.indexOf("ejecting")).toBeGreaterThan(stages.indexOf("engine"));
+    expect(stages.at(-1)).toBe("done");
+  });
+
+  it("does not eject when an Engine library already exists", async () => {
+    const backend = createMockBackend({ trackCount: 20 });
+    await backend.edits.createPlaylist("Engine set", TREE_ROOT);
+    const playlist = (await backend.playlistTree()).find(p => p.name === "Engine set")!.id;
+    await backend.edits.addTracksToPlaylist(playlist, ["100000"]);
+    const destination = (await backend.listDevices()).find(d => !d.export)!.path;
+    await backend.exportPlaylist(playlist, destination, undefined, false, undefined, "");
+    const reports = await backend.syncDevices([playlist], [destination], undefined, false, true, false, undefined, false, "");
+    expect(reports[0]?.error).toContain("Engine Library already exists");
+    expect(reports[0]?.ejected).toBe(false);
+    expect((await backend.listDevices()).some(d => d.path === destination)).toBe(true);
+    expect((await backend.exportProgress())[0]?.state).toBe("failed");
+  });
+});
