@@ -54,14 +54,16 @@ jobs:
       - name: Verify architecture and collect download
         run: |
           set -euo pipefail
-          app=target/aarch64-apple-darwin/release/bundle/macos/rbxport.app
-          test "$(lipo -archs "$app/Contents/MacOS/rbxport")" = arm64
           dmgs=()
           while IFS= read -r file; do dmgs+=("$file"); done < <(find target/aarch64-apple-darwin/release/bundle/dmg -maxdepth 1 -name '*.dmg' -type f)
           test "${#dmgs[@]}" -eq 1
           mkdir -p out
           cp "${dmgs[0]}" out/rbxport-apple-silicon.dmg
           hdiutil verify out/rbxport-apple-silicon.dmg
+          mount_dir=$(mktemp -d)
+          trap 'hdiutil detach "$mount_dir" >/dev/null 2>&1 || true; rmdir "$mount_dir" >/dev/null 2>&1 || true' EXIT
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" out/rbxport-apple-silicon.dmg
+          test "$(lipo -archs "$mount_dir/rbxport.app/Contents/MacOS/rbxport")" = arm64
           (cd out && shasum -a 256 rbxport-apple-silicon.dmg > rbxport-apple-silicon.dmg.sha256)
       - uses: actions/upload-artifact@v4
         with:
