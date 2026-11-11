@@ -3,6 +3,16 @@
 The entry-point workflows describe orchestration. Reusable workflows and local
 composite actions own implementation details.
 
+## Apple Silicon builds in the einaralex fork
+
+`apple-silicon-download.yml` builds an unsigned arm64 DMG on GitHub's hosted
+`macos-15` runner for pull requests to `main`. After a push or merge to `main`,
+it publishes the verified DMG as the fork's latest GitHub Release. The direct
+download URL is
+`https://github.com/einaralex/rbxporteng/releases/latest/download/rbxport-apple-silicon.dmg`.
+No upstream self-hosted runner, signing secret, or R2 bucket is required. The
+fork skips `ci.yml`'s upstream self-hosted jobs.
+
 Pull requests use a focused validation profile selected from changed paths.
 Manual full validation and the release workflow keep every input at its default
 and therefore run the exhaustive cross-platform, browser, budget, MSRV, and

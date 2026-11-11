@@ -4188,6 +4188,7 @@ dependencies = [
  "rbl-onelibrary",
  "rbl-pdb",
  "rbl-prolink",
+ "rekordbox-to-engine",
  "rusqlite",
  "semver",
  "sentry",
@@ -4302,6 +4303,23 @@ name = "regex-syntax"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+
+[[package]]
+name = "rekordbox-to-engine"
+version = "0.1.0"
+source = "git+https://github.com/einaralex/rb-engine?rev=2f52edbdc67e300208bacf4c8eab7ceae4513f8c#2f52edbdc67e300208bacf4c8eab7ceae4513f8c"
+dependencies = [
+ "anyhow",
+ "crc32fast",
+ "flate2",
+ "hex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2 0.10.9",
+ "uuid",
+]
 
 [[package]]
 name = "reqwest"
@@ -4976,6 +4994,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "170fb83ab34de17dc69aa7c67482b22218ddb85da56546f9bd6b929e32a05930"
 dependencies = [
  "stable_deref_trait",
+]
+
+[[package]]
+name = "sha1"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.2.17",
+ "digest 0.10.7",
 ]
 
 [[package]]

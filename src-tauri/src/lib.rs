@@ -16,6 +16,7 @@ mod test_stick;
 pub mod analysis;
 pub mod commands;
 mod usb_import;
+mod engine_export;
 pub mod cues;
 pub mod details;
 pub mod grid;

@@ -81,6 +81,7 @@ name = "menu"
 harness = false
 
 [target.'cfg(target_os = "macos")'.dependencies]
+rekordbox-to-engine = { git = "https://github.com/einaralex/rb-engine", rev = "2f52edbdc67e300208bacf4c8eab7ceae4513f8c", default-features = false }
 # 2.1.1's objc2 binding assumes AppKit always returns a non-null
 # NSDraggingSession. WKWebView can return nil while still completing the drag,
 # which turns a successful in-app drop into a caught panic.

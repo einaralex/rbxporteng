@@ -217,8 +217,8 @@ describe("the sliders and the quantize value", () => {
 });
 
  it("defaults Import to cues, history and ratings and preserves saved choices", () => {
-  expect(sanitisePreferences({}).usbExport).toEqual({ deleteUnlistedMusic: false, maximumCompatibility: false, conversionFormat: "wav", verifyAllFiles: false, importButtonCues: true, importButtonHistory: true, importButtonSettings: false, importButtonRatings: true });
-  expect(sanitisePreferences({ usbExport: { importButtonHistory: false, importButtonRatings: false } }).usbExport).toEqual({ deleteUnlistedMusic: false, maximumCompatibility: false, conversionFormat: "wav", verifyAllFiles: false, importButtonCues: true, importButtonHistory: false, importButtonSettings: false, importButtonRatings: false });
+  expect(sanitisePreferences({}).usbExport).toEqual({ prepareEngine: false, engineExecutable: "", deleteUnlistedMusic: false, maximumCompatibility: false, conversionFormat: "wav", verifyAllFiles: false, importButtonCues: true, importButtonHistory: true, importButtonSettings: false, importButtonRatings: true });
+  expect(sanitisePreferences({ usbExport: { importButtonHistory: false, importButtonRatings: false } }).usbExport).toEqual({ prepareEngine: false, engineExecutable: "", deleteUnlistedMusic: false, maximumCompatibility: false, conversionFormat: "wav", verifyAllFiles: false, importButtonCues: true, importButtonHistory: false, importButtonSettings: false, importButtonRatings: false });
   expect(sanitisePreferences({ usbExport: { importButtonCues: false, importButtonSettings: true } }).usbExport).toMatchObject({ importButtonCues: false, importButtonHistory: true, importButtonSettings: true });
 });
 
@@ -255,4 +255,13 @@ describe("browseListVars", () => {
     expect(vars["--s-row-height"]).toBe("25px");
     expect(vars["--browse-weight"]).toBe(400);
   });
+});
+
+
+it("keeps Engine preparation opt-in and sanitises the executable path", () => {
+  expect(sanitisePreferences({}).usbExport).toMatchObject({ prepareEngine: false, engineExecutable: "" });
+  expect(sanitisePreferences({ usbExport: { prepareEngine: true, engineExecutable: "/tmp/rb engine" } }).usbExport)
+    .toMatchObject({ prepareEngine: true, engineExecutable: "/tmp/rb engine" });
+  expect(sanitisePreferences({ usbExport: { prepareEngine: "yes", engineExecutable: 12 } }).usbExport)
+    .toMatchObject({ prepareEngine: false, engineExecutable: "" });
 });

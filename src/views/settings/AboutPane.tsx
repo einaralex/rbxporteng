@@ -57,6 +57,7 @@ const SUPPORT_URL = "https://www.paypal.com/donate/?hosted_button_id=H6GGU8PHP8C
 
 export function AboutPane() {
   const t = useTranslation();
+  const forkDownloads = import.meta.env.VITE_FORK_DOWNLOADS === "1";
   const { preferences, update } = usePreferencesContext();
   const { checkUpdates, updateFrequency } = preferences.advanced;
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ kind: "idle" });
@@ -174,11 +175,14 @@ export function AboutPane() {
             <h1 className={styles.aboutName}>rbxport</h1>
             <p className={styles.aboutVersion} data-testid="about-version">v{version ?? "—"}</p>
           </div>
-          <Button disabled={updateStatus.kind === "checking"} onClick={checkForUpdates}>
-            {updateStatus.kind === "checking" ? "Checking…" : "Check for updates"}
-          </Button>
+          {forkDownloads
+            ? <Button onClick={() => open("https://github.com/einaralex/rbxporteng/releases/latest")}>Download latest Apple Silicon build</Button>
+            : <Button disabled={updateStatus.kind === "checking"} onClick={checkForUpdates}>
+                {updateStatus.kind === "checking" ? "Checking…" : "Check for updates"}
+              </Button>}
         </div>
         <div className={styles.aboutUpdates}>
+          {forkDownloads ? <p className={layout.help}>New Apple Silicon downloads are published on GitHub after every merge to main. Download and install the latest build there; this fork does not install updates automatically.</p> : <>
           <div className={styles.updateControls}>
             <Toggle
               label="Download updates"
@@ -229,6 +233,7 @@ export function AboutPane() {
             </div>
           ) : null}
           {updateError ? <p className={styles.updateError} role="alert">{updateError}</p> : null}
+          </>}
         </div>
         <div className={styles.aboutSupport}>
           <h2>Support rbxport</h2>

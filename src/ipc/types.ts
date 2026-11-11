@@ -549,6 +549,8 @@ export interface Backend {
     deleteUnlistedMusic?: boolean,
     /** Convert incompatible USB copies; undefined preserves the source format. */
     compatibilityFormat?: "wav" | "aiff" | "mp3",
+    /** Prepare Engine data after export; empty string uses the bundled helper, undefined disables it. */
+    engineExecutable?: string,
   ): Promise<ExportReport>;
 
   /**
@@ -556,7 +558,7 @@ export interface Backend {
    * beside what the stick already holds. A later sync keeps them unless
    * deleteUnlistedMusic is enabled.
    */
-  exportTracksToDevice(tracks: string[], destination: string, defaults?: StickDefaults, compatibilityFormat?: "wav" | "aiff" | "mp3"): Promise<ExportReport>;
+  exportTracksToDevice(tracks: string[], destination: string, defaults?: StickDefaults, compatibilityFormat?: "wav" | "aiff" | "mp3", engineExecutable?: string): Promise<ExportReport>;
 
   /**
    * rekordbox's reference browse categories and sort options: what a
@@ -961,6 +963,8 @@ export interface Backend {
     compatibilityFormat?: "wav" | "aiff" | "mp3",
     /** Read every exported asset instead of trusting unchanged receipts. */
     verifyAll?: boolean,
+    /** Prepare Engine data after export; empty string uses the bundled helper, undefined disables it. */
+    engineExecutable?: string,
   ): Promise<SyncDeviceReport[]>;
 
   /** Missing source audio in the exact playlists selected for USB export. */
@@ -1675,7 +1679,7 @@ export interface ExportProgress {
   upToDate?: boolean;
   path: string;
   warningsCount?: number;
-  state: "preparing" | "planning" | "recovering" | "checking" | "converting" | "copying" | "database" | "verifying" | "publishing" | "finalizing" | "ejecting" | "done" | "failed" | "cancelled";
+  state: "preparing" | "planning" | "recovering" | "checking" | "converting" | "copying" | "database" | "verifying" | "publishing" | "finalizing" | "engine" | "ejecting" | "done" | "failed" | "cancelled";
   done: number;
   total: number;
   title: string;

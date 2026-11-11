@@ -824,7 +824,15 @@ export function createMockBackend(options: MockOptions = {}): Backend {
     exportJobs.set(path, progress);
     for (const listener of exportListeners) listener(progress);
   };
-  const mockExport = async (path: string, write: () => ExportReport) => {
+  const enginePrepared = new Set<string>();
+  const prepareEngine = async (path: string, executable: string | undefined) => {
+    if (executable === undefined) return;
+    tellExport(path, "engine");
+    await wait(undefined);
+    if (enginePrepared.has(path)) throw new Error("Rekordbox export completed, but Engine DJ preparation failed: Engine Library already exists.");
+    enginePrepared.add(path);
+  };
+  const mockExport = async (path: string, write: () => ExportReport, engineExecutable?: string) => {
     cancelledExports.delete(path);
     tellExport(path, "copying");
     await wait(undefined);
@@ -835,6 +843,7 @@ export function createMockBackend(options: MockOptions = {}): Backend {
     tellExport(path, "copying", 50);
     try {
       const report = write();
+      await prepareEngine(path, engineExecutable);
       await wait(undefined);
       tellExport(path, "done", 100);
       return report;
@@ -2079,7 +2088,7 @@ export function createMockBackend(options: MockOptions = {}): Backend {
 
     // No filesystem in a browser, so nothing is written — but the counts are
     // answered so the device panel's reporting can be driven end to end.
-    exportPlaylist: (playlistId, destination, defaults, deleteUnlistedMusic) => {
+    exportPlaylist: (playlistId, destination, defaults, deleteUnlistedMusic, _compatibilityFormat, engineExecutable) => {
       const device = devices.find((d) => d.path === destination);
       if (!device) {
         // The counts are still answered for a path no mock stick is at, so
@@ -2093,15 +2102,15 @@ export function createMockBackend(options: MockOptions = {}): Backend {
       // Added beside what the stick holds, as rekordbox's Export Playlist
       // adds one (#304); only the Sync Manager's SYNC replaces the selection.
       const held = (syncSelections.get(destination) ?? []).map(p => p.libraryId);
-      return mockExport(destination, () => writeTo(device, held.includes(playlistId) ? held : [...held, playlistId], defaults, deleteUnlistedMusic));
+      return mockExport(destination, () => writeTo(device, held.includes(playlistId) ? held : [...held, playlistId], defaults, deleteUnlistedMusic), engineExecutable);
     },
-    exportTracksToDevice: (tracks, destination, defaults) => {
+    exportTracksToDevice: (tracks, destination, defaults, _compatibilityFormat, engineExecutable) => {
       const device = devices.find((d) => d.path === destination);
       if (!device) return Promise.reject(new Error("That device is no longer connected."));
       const loose = looseTracks.get(destination) ?? new Set<string>();
       for (const track of tracks) loose.add(track);
       looseTracks.set(destination, loose);
-      return mockExport(destination, () => writeTo(device, (syncSelections.get(destination) ?? []).map(p => p.libraryId), defaults));
+      return mockExport(destination, () => writeTo(device, (syncSelections.get(destination) ?? []).map(p => p.libraryId), defaults), engineExecutable);
     },
 
     // No windows in a browser: the shell draws the manager over itself.
@@ -2112,7 +2121,7 @@ export function createMockBackend(options: MockOptions = {}): Backend {
     // Stick after stick, each announced before and after, as the real run
     // is. A destination that is not a mock device is a stick that was
     // pulled: its entry carries the error and the others their reports.
-    syncDevices: async (playlists, destinations, defaults, automatic, ejectAfterSync, deleteUnlistedMusic) => {
+    syncDevices: async (playlists, destinations, defaults, automatic, ejectAfterSync, deleteUnlistedMusic, _compatibilityFormat, _verifyAll, engineExecutable) => {
       if (playlists.length === 0) throw new Error("That playlist has no tracks to export.");
       const reports = [];
       for (const path of destinations) {
@@ -2134,6 +2143,14 @@ export function createMockBackend(options: MockOptions = {}): Backend {
         }
         if (device) {
           const report = writeTo(device, playlists, defaults, deleteUnlistedMusic);
+          try {
+            await prepareEngine(path, engineExecutable);
+          } catch (error) {
+            reports.push({ path, error: error instanceof Error ? error.message : String(error), ejected: false });
+            tell("failed");
+            tellExport(path, "failed");
+            continue;
+          }
           const ejected = Boolean(ejectAfterSync && report.verified && report.skipped.length === 0 && report.failed.length === 0);
           if (ejected) {
             tell("ejecting");

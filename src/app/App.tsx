@@ -525,14 +525,26 @@ function AppBody() {
   }, []);
   // Checks on its own a while after launch when Preferences says so; the
   // menu and Preferences ask by hand.
-  const updater = useUpdater(advancedPrefs.checkUpdates, advancedPrefs.updateFrequency);
-  const checkForUpdates = updater.check;
+  const forkDownloads = import.meta.env.VITE_FORK_DOWNLOADS === "1";
+  const updater = useUpdater(!forkDownloads && advancedPrefs.checkUpdates, advancedPrefs.updateFrequency);
+  const updaterCheck = updater.check;
+  const checkForUpdates = useCallback((manual: boolean) => {
+    if (forkDownloads) {
+      void getBackend().then((backend) => backend.openUrl("https://github.com/einaralex/rbxporteng/releases/latest")).catch(() => {});
+    } else {
+      updaterCheck(manual);
+    }
+  }, [forkDownloads, updaterCheck]);
   const openWhatsNew = useCallback(() => {
+    if (forkDownloads) {
+      void getBackend().then((backend) => backend.openUrl("https://github.com/einaralex/rbxporteng/releases/latest")).catch(() => {});
+      return;
+    }
     const release = updater.state.phase === "ready" ? `#v${updater.state.ready.version}` : "";
     void getBackend()
       .then((backend) => backend.openUrl(`https://rbxport.com/whats-new/${release}`))
       .catch(() => {});
-  }, [updater.state]);
+  }, [forkDownloads, updater.state]);
   const [updateNoticeVisible, setUpdateNoticeVisible] = useState(false);
   useEffect(() => {
     setUpdateNoticeVisible(updater.state.phase === "ready");
@@ -541,6 +553,7 @@ function AppBody() {
   // DJ System in Preferences is what a stick with no settings of its own
   // gets on export; the same shape goes with every export call.
   const stickDefaults = prefs.preferences.djSystem;
+  const engineExecutable = prefs.preferences.usbExport.prepareEngine ? prefs.preferences.usbExport.engineExecutable : undefined;
   const deleteUnlistedMusic = prefs.preferences.usbExport.deleteUnlistedMusic;
   const compatibilityFormat = prefs.preferences.usbExport.maximumCompatibility ? prefs.preferences.usbExport.conversionFormat : undefined;
   /** How much of the window the deck takes, kept across restarts. */
@@ -2017,7 +2030,7 @@ function AppBody() {
       void (async () => {
         try {
           const backend = await getBackend();
-          const written = await backend.exportTracksToDevice([...ids], path, stickDefaults, compatibilityFormat);
+          const written = await backend.exportTracksToDevice([...ids], path, stickDefaults, compatibilityFormat, engineExecutable);
           report(exportSummary(name, written, t));
           setDevices(await backend.listDevices());
         } catch (e) {
@@ -2028,7 +2041,7 @@ function AppBody() {
         }
       })();
     },
-    [devices, report, refuse, stickDefaults, compatibilityFormat, t],
+    [devices, report, refuse, stickDefaults, compatibilityFormat, engineExecutable, t],
   );
 
   // Export Loop As WAV: where to, then the loop's stretch of the track.
@@ -2790,7 +2803,7 @@ function AppBody() {
       report(`Writing ${name} to ${device.name}…`);
       try {
         const backend = await getBackend();
-        const written = await backend.exportPlaylist(playlistId, device.path, stickDefaults, deleteUnlistedMusic, compatibilityFormat);
+        const written = await backend.exportPlaylist(playlistId, device.path, stickDefaults, deleteUnlistedMusic, compatibilityFormat, engineExecutable);
         const said = exportSummary(device.name, written, t);
         report(said);
         setDevices(await backend.listDevices());
@@ -2806,7 +2819,7 @@ function AppBody() {
         setSyncing(false);
       }
     },
-    [tree, report, refuse, stickDefaults, deleteUnlistedMusic, compatibilityFormat, t],
+    [tree, report, refuse, stickDefaults, deleteUnlistedMusic, compatibilityFormat, engineExecutable, t],
   );
 
   const syncToDevice = useCallback(

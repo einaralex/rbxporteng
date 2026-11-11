@@ -26,3 +26,18 @@
 .format select:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
 .format select:disabled { opacity: 0.5; cursor: not-allowed; }
 .conversion > p { margin-bottom: 0; }
+
+.enginePath {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 32px;
+  margin-block-start: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--c-outline);
+  border-radius: 4px;
+  background: var(--c-field);
+  color: var(--c-icon-on);
+  font: inherit;
+}
+.enginePath:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.enginePath:disabled { opacity: 0.5; }

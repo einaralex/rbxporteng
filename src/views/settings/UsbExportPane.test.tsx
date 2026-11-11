@@ -144,3 +144,19 @@ it("says Maximum CDJ compatibility also converts low-sample-rate MP3s", () => {
   expect(help?.textContent).toContain("FLAC and M4A");
   expect(help?.textContent).toContain("low-sample-rate MP3s (16, 22.05 or 24 kHz) that some players play too fast");
 });
+
+
+it("offers automatic Engine preparation after export", () => {
+  const update = vi.fn();
+  act(() => root.render(
+    <PreferencesProvider value={{ preferences: DEFAULT_PREFERENCES, update, reset: vi.fn() }}>
+      <UsbExportPane />
+    </PreferencesProvider>,
+  ));
+  const option = host.querySelector<HTMLInputElement>('input[aria-labelledby$="-engine"]');
+  expect(option?.checked).toBe(false);
+  expect(host.querySelector<HTMLInputElement>('input[id$="-engine-path"]')?.disabled).toBe(true);
+  expect(host.textContent).toContain("before ejecting");
+  act(() => option?.click());
+  expect(update).toHaveBeenCalledWith("usbExport", { prepareEngine: true });
+});

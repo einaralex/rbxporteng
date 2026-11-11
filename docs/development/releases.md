@@ -2,6 +2,18 @@
 
 [Documentation](../README.md) · [Contributing](../../CONTRIBUTING.md)
 
+## einaralex fork: Apple Silicon downloads
+
+This fork publishes an unsigned Apple Silicon DMG from every push to `main`
+through `.github/workflows/apple-silicon-download.yml`. The build uses a
+GitHub-hosted `macos-15` runner, verifies its arm64 binary and DMG, and creates
+a release tagged with that commit. The newest successful main build is marked
+as the [latest release](https://github.com/einaralex/rbxporteng/releases/latest).
+The app links there for manual updates; the upstream automatic updater is not
+used by fork builds. See the root README for installation and first-launch
+instructions. The upstream release process below remains for the original
+project and requires its own runners and signing infrastructure.
+
 The release entry point is `npm run deploy` from a clean, pushed `dev` checkout.
 A normal push does not publish a release. Read the deployment script and
 workflow before operating them; they create tags, promote branches, publish

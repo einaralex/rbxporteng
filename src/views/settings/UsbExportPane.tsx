@@ -71,6 +71,23 @@ export function UsbExportPane() {
           checked={preferences.usbExport.verifyAllFiles}
           onChange={event => update("usbExport", { verifyAllFiles: event.target.checked })} />
       </label>
+      <div className={`${layout.summary} ${styles.conversion}`}>
+        <label className={styles.conversionToggle}>
+          <span className={styles.details}>
+            <strong id={`${id}-engine`}>{t("Prepare USB for Engine DJ after export")}</strong>
+            <span id={`${id}-engine-help`} className={styles.description}>{t("Run Engine DJ analysis after the Rekordbox export finishes, before ejecting. Requires macOS and Engine DJ. Unchanged USB libraries created by this app refresh automatically; otherwise, you will be asked before replacement.")}</span>
+          </span>
+          <input type="checkbox" role="switch" className={controls.toggle}
+            aria-labelledby={`${id}-engine`} aria-describedby={`${id}-engine-help`}
+            checked={preferences.usbExport.prepareEngine}
+            onChange={event => update("usbExport", { prepareEngine: event.target.checked })} />
+        </label>
+        <label className={styles.description} htmlFor={`${id}-engine-path`}>{t("External helper executable override (optional)")}</label>
+        <input id={`${id}-engine-path`} type="text" className={styles.enginePath}
+          disabled={!preferences.usbExport.prepareEngine}
+          value={preferences.usbExport.engineExecutable}
+          onChange={event => update("usbExport", { engineExecutable: event.target.value })} />
+      </div>
     </Section>
     <Section title={t("Import")} id={USB_EXPORT_SECTIONS.import}>
       {/* What Import brings back. SYNC never imports: device changes reach

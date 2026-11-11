@@ -11,6 +11,7 @@ use rbl_deck::{Band, Curve};
 use rbl_index::Library;
 use tauri::State;
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
 use crate::link::LinkStatusDto;
 use crate::dto::{
@@ -1047,14 +1048,15 @@ pub async fn link_take_master_tempo(state: State<'_, Arc<AppState>>) -> AppResul
 /// Writes a playlist to a stick: the tree's Export Playlist / Export Folder.
 ///
 /// Copies the audio, re-emits the analysis, and writes `export.pdb` and
-/// `exportLibrary.db`. Never re-analyses: an export moves what the library
-/// already knows.
+/// `exportLibrary.db`. The Rekordbox phase moves the existing analysis;
+/// optional Engine DJ preparation runs only after that export is verified.
 ///
 /// The playlist is added beside what the stick already holds, as rekordbox's
 /// Export Playlist adds one ("Export the selected playlist to the device",
 /// rekordbox 7.2.18 manual p. 256); only the Sync Manager's SYNC makes a
 /// stick hold exactly a selection (#304).
 #[tauri::command]
+#[allow(clippy::too_many_arguments, reason = "USB export options supplied by the frontend")]
 pub async fn export_playlist<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: State<'_, Arc<AppState>>,
@@ -1065,6 +1067,7 @@ pub async fn export_playlist<R: tauri::Runtime>(
     defaults: Option<crate::device_settings::StickDefaultsDto>,
     delete_unlisted_music: Option<bool>,
     compatibility_format: Option<rbl_export::CompatibilityFormat>,
+    engine_executable: Option<String>,
 ) -> AppResult<ExportReportDto> {
     let library = state.library()?;
     let share = state.share_root();
@@ -1072,7 +1075,8 @@ pub async fn export_playlist<R: tauri::Runtime>(
     let progress_app = app.clone();
     let report = blocking("export_playlist", move || {
         let destination = std::path::Path::new(&destination);
-        let reservation = reserve_export(&progress_app, destination)?;
+        let mut reservation = reserve_export(&progress_app, destination)?;
+        reservation.engine_executable = engine_executable;
         let selection = playlist_export_selection(&state, &library, &share, destination, &playlist, delete_unlisted_music.unwrap_or(false))?;
         write_export_registered(&progress_app, destination, &selection, defaults.as_ref(), compatibility_format, &reservation)
     })
@@ -1162,6 +1166,7 @@ pub async fn sync_devices<R: tauri::Runtime>(
     delete_unlisted_music: Option<bool>,
     compatibility_format: Option<rbl_export::CompatibilityFormat>,
     verify_all: Option<bool>,
+    engine_executable: Option<String>,
 ) -> AppResult<Vec<SyncDeviceReportDto>> {
     let library = state.library()?;
     let share = state.share_root();
@@ -1175,7 +1180,8 @@ pub async fn sync_devices<R: tauri::Runtime>(
             unique.push(destination);
         }
         let reservations: Vec<_> = destinations.iter().map(|path| reserve_export(&app, std::path::Path::new(path)).map(|mut ticket| {
-            ticket.verify_all = verify_all.unwrap_or(false); ticket
+            ticket.verify_all = verify_all.unwrap_or(false);
+            ticket.engine_executable.clone_from(&engine_executable); ticket
         })).collect();
         let selection =
             ExportSelection::from_playlists(&state, &library, &share, &playlists, automatic.unwrap_or(false))?;
@@ -1299,12 +1305,14 @@ fn sync_one_device<R: tauri::Runtime>(
             result
         },
         Err(e) => {
-            progress("failed");
+            let cancelled = matches!(e.kind, ErrorKind::Cancelled);
+            progress(if cancelled { "cancelled" } else { "failed" });
             tracing::warn!(destination, error = %e, detail = e.detail.as_deref().unwrap_or(""), "sync to one device failed");
             // The Sync Manager shows this line on its own, so an internal
             // error's detail — what actually failed — goes with its summary.
             let message = e.full_message();
-            set_export_failure(app, stick, message.clone());
+            if cancelled { set_export_stage(app, stick, "cancelled"); }
+            else { set_export_failure(app, stick, message.clone()); }
             SyncDeviceReportDto { path: destination, report: None, error: Some(message), ejected: false, eject_error: None }
         }
     }
@@ -1378,6 +1386,7 @@ pub async fn export_tracks_to_device<R: tauri::Runtime>(
     destination: String,
     defaults: Option<crate::device_settings::StickDefaultsDto>,
     compatibility_format: Option<rbl_export::CompatibilityFormat>,
+    engine_executable: Option<String>,
 ) -> AppResult<ExportReportDto> {
     let library = state.library()?;
     let share = state.share_root();
@@ -1385,7 +1394,8 @@ pub async fn export_tracks_to_device<R: tauri::Runtime>(
     let progress_app = app.clone();
     let report = blocking("export_tracks_to_device", move || {
         let stick = std::path::Path::new(&destination);
-        let reservation = reserve_export(&progress_app, stick)?;
+        let mut reservation = reserve_export(&progress_app, stick)?;
+        reservation.engine_executable = engine_executable;
         let selection = track_export_selection(&state, &library, &share, stick, &tracks)?;
         write_export_registered(&progress_app, stick, &selection, defaults.as_ref(), compatibility_format, &reservation)
     })
@@ -1873,12 +1883,14 @@ static EXPORT_CACHE: std::sync::LazyLock<rbl_export::cache::PreparationCache> = 
     cache
 });
 static NEXT_EXPORT_JOB: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+static ENGINE_REPLACE_PROMPT: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 struct ExportReservation<R: tauri::Runtime> {
     app: tauri::AppHandle<R>, path: String, id: String,
     cancel: Arc<std::sync::atomic::AtomicBool>, started: std::time::Instant,
     volume: Option<rbl_core::durable::VolumeIdentity>,
     verify_all: bool,
+    engine_executable: Option<String>,
 }
 
 impl<R: tauri::Runtime> ExportReservation<R> {
@@ -1927,7 +1939,7 @@ fn reserve_export<R: tauri::Runtime>(app: &tauri::AppHandle<R>, destination: &st
     jobs.insert(path.clone(), progress.clone());
     drop(jobs); drop(controls);
     let _ = tauri::Emitter::emit(app, "export:progress", progress);
-    Ok(ExportReservation { app: app.clone(), path, id, cancel, started: std::time::Instant::now(), volume: Some(volume), verify_all: false })
+    Ok(ExportReservation { app: app.clone(), path, id, cancel, started: std::time::Instant::now(), volume: Some(volume), verify_all: false, engine_executable: None })
 }
 
 fn set_export_stage<R: tauri::Runtime>(app: &tauri::AppHandle<R>, destination: &std::path::Path, state: &'static str) {
@@ -2064,6 +2076,29 @@ fn write_export_registered<R: tauri::Runtime>(
     reservation: &ExportReservation<R>,
 ) -> AppResult<ExportReportDto> {
     reservation.check(destination)?;
+    let replace_engine = if let Some(executable) = reservation.engine_executable.as_deref() {
+        let choice = crate::engine_export::preflight_with_replacement(destination, executable, |reason| {
+            // Several USB workers can reach this point together. Show one
+            // destructive choice at a time so its device stays unambiguous.
+            let Ok(_prompt) = ENGINE_REPLACE_PROMPT.lock() else { return false };
+            app.dialog()
+                .message(format!("This USB ({}) already has an Engine Library that cannot be refreshed automatically:\n\n{reason}\n\nReplace it with a new Engine Library? Engine DJ or player edits in the existing library will be lost.", destination.display()))
+                .title("Replace Engine Library?")
+                .buttons(MessageDialogButtons::OkCancelCustom("Replace Library".into(), "Cancel".into()))
+                .blocking_show()
+        }).map_err(|error| {
+            let message = format!("Engine DJ preparation cannot start: {error}");
+            set_export_failure(app, destination, message.clone());
+            AppError::new(ErrorKind::Internal, message)
+        })?;
+        match choice {
+            Some(replace) => replace,
+            None => {
+                reservation.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+                return Err(AppError::new(ErrorKind::Cancelled, "Engine Library replacement cancelled."));
+            },
+        }
+    } else { false };
     let total = u32::try_from(selection.tracks.len()).unwrap_or(u32::MAX);
     let path = destination.to_string_lossy().into_owned();
     let cancel = &reservation.cancel;
@@ -2124,7 +2159,26 @@ fn write_export_registered<R: tauri::Runtime>(
         &mut |phase| emit(phase, 0, String::new(), None),
         &|| cancel.load(std::sync::atomic::Ordering::Relaxed),
     )
-    .map_err(|error| disconnected_during_export(destination, error));
+    .map_err(|error| disconnected_during_export(destination, error))
+    .and_then(|mut report| {
+        if let Some(executable) = reservation.engine_executable.as_deref() {
+            // The Pioneer generation is already published. Keep the reservation
+            // until Engine finishes so another export or eject cannot race it.
+            reservation.check(destination)?;
+            if !report.skipped.is_empty() || !report.failed.is_empty() {
+                return Err(AppError::new(ErrorKind::Internal,
+                    "Rekordbox export was incomplete. Engine DJ preparation was not started; review the USB export before retrying."));
+            }
+            emit("engine", 0, String::new(), None);
+            crate::engine_export::prepare(destination, executable, replace_engine).map_err(|error| AppError::new(
+                ErrorKind::Internal,
+                format!("Rekordbox export completed, but Engine DJ preparation failed: {error} The USB has not been ejected."),
+            ))?;
+            reservation.check(destination)?;
+            report.up_to_date = false;
+        }
+        Ok(report)
+    });
     let cancelled = result.as_ref().err().is_some_and(|e| matches!(e.kind, ErrorKind::Cancelled));
     emit(if result.is_ok() { "done" } else if cancelled { "cancelled" } else { "failed" }, if result.is_ok() { total } else { done.get() },
         result.as_ref().err().map_or_else(String::new, |e| e.message.clone()), None);

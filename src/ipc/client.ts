@@ -336,16 +336,17 @@ async function realBackend(): Promise<Backend> {
       if (typeof picked !== "string") return null;
       return invoke<number>("export_xml", { path: picked });
     },
-    exportPlaylist: (playlistId, destination, defaults, deleteUnlistedMusic, compatibilityFormat) =>
+    exportPlaylist: (playlistId, destination, defaults, deleteUnlistedMusic, compatibilityFormat, engineExecutable) =>
       invoke<ExportReport>("export_playlist", {
         playlist: playlistId,
         destination,
         defaults: defaults ?? null,
         deleteUnlistedMusic: deleteUnlistedMusic ?? false,
         compatibilityFormat: compatibilityFormat ?? null,
+        engineExecutable: engineExecutable ?? null,
       }),
-    exportTracksToDevice: (tracks, destination, defaults, compatibilityFormat) =>
-      invoke<ExportReport>("export_tracks_to_device", { tracks, destination, defaults: defaults ?? null, compatibilityFormat: compatibilityFormat ?? null }),
+    exportTracksToDevice: (tracks, destination, defaults, compatibilityFormat, engineExecutable) =>
+      invoke<ExportReport>("export_tracks_to_device", { tracks, destination, defaults: defaults ?? null, compatibilityFormat: compatibilityFormat ?? null, engineExecutable: engineExecutable ?? null }),
     referenceStickSettings: () => invoke<ReferenceStickSettings>("reference_stick_settings"),
     listDevices: () => invoke<Device[]>("list_devices"),
     onExportProgress: (listener) => subscribe<ExportProgress>("export:progress", listener),
@@ -570,7 +571,7 @@ async function realBackend(): Promise<Backend> {
       await invoke<void>("open_sync_window");
       return true;
     },
-    syncDevices: (playlists, destinations, defaults, automatic, ejectAfterSync, deleteUnlistedMusic, compatibilityFormat, verifyAll) =>
+    syncDevices: (playlists, destinations, defaults, automatic, ejectAfterSync, deleteUnlistedMusic, compatibilityFormat, verifyAll, engineExecutable) =>
       invoke<SyncDeviceReport[]>("sync_devices", {
         playlists,
         destinations,
@@ -580,6 +581,7 @@ async function realBackend(): Promise<Backend> {
         deleteUnlistedMusic: deleteUnlistedMusic ?? false,
         compatibilityFormat: compatibilityFormat ?? null,
         verifyAll: verifyAll ?? false,
+        engineExecutable: engineExecutable ?? null,
       }),
     estimateSync: (playlists, destinations, deleteUnlistedMusic, compatibilityFormat) =>
       invoke<SyncEstimate[]>("estimate_sync", {

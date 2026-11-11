@@ -1,0 +1,111 @@
+name: Apple Silicon download
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: apple-silicon-download
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Apple Silicon DMG
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: apple-silicon-download
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - name: Test export and download settings
+        run: >-
+          pnpm exec vitest run
+          src/views/settings/AboutPane.test.tsx
+          src/views/settings/UsbExportPane.test.tsx
+          src/views/sync/SyncManager.test.tsx
+          src/ipc/backend-mock.test.ts
+          src/lib/preferences.test.ts
+          src/lib/exportProgress.test.ts
+      - name: Build the unsigned Apple Silicon DMG
+        env:
+          TAURI_BUNDLER_DMG_IGNORE_CI: "false"
+        run: >-
+          pnpm exec tauri build
+          --target aarch64-apple-darwin
+          --bundles dmg
+          --no-sign
+          --ci
+          --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Verify architecture and collect download
+        run: |
+          set -euo pipefail
+          dmgs=()
+          while IFS= read -r file; do dmgs+=("$file"); done < <(find target/aarch64-apple-darwin/release/bundle/dmg -maxdepth 1 -name '*.dmg' -type f)
+          test "${#dmgs[@]}" -eq 1
+          mkdir -p out
+          cp "${dmgs[0]}" out/rbxport-apple-silicon.dmg
+          hdiutil verify out/rbxport-apple-silicon.dmg
+          mount_dir=$(mktemp -d)
+          trap 'hdiutil detach "$mount_dir" >/dev/null 2>&1 || true; rmdir "$mount_dir" >/dev/null 2>&1 || true' EXIT
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" out/rbxport-apple-silicon.dmg
+          test "$(lipo -archs "$mount_dir/rbxport.app/Contents/MacOS/rbxport")" = arm64
+          (cd out && shasum -a 256 rbxport-apple-silicon.dmg > rbxport-apple-silicon.dmg.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rbxport-apple-silicon
+          path: out/
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub download
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: rbxport-apple-silicon
+          path: out/
+      - name: Publish latest main build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if [ "$SOURCE_SHA" != "$(git rev-parse origin/main)" ]; then
+            echo "A newer main commit exists; its run will publish the latest build."
+            exit 0
+          fi
+          test -s out/rbxport-apple-silicon.dmg
+          tag="macos-arm64-${SOURCE_SHA:0:12}"
+          if gh release view "$tag" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" out/rbxport-apple-silicon.dmg out/rbxport-apple-silicon.dmg.sha256 --clobber --repo "$REPOSITORY"
+            gh release edit "$tag" --latest --repo "$REPOSITORY"
+          else
+            gh release create "$tag" out/rbxport-apple-silicon.dmg out/rbxport-apple-silicon.dmg.sha256 \
+              --repo "$REPOSITORY" --target "$SOURCE_SHA" --latest \
+              --title "Apple Silicon build ${SOURCE_SHA:0:12}" \
+              --notes "Unsigned Apple Silicon build of main at ${SOURCE_SHA}. Install Engine DJ for USB preparation. On first launch, macOS may ask you to allow this unnotarized app in Privacy & Security."
+          fi
