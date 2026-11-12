@@ -26,8 +26,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin
+      - name: Install arm64 target for pinned Rust toolchain
+        run: rustup target add aarch64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
           key: apple-silicon-download
