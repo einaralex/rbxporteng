@@ -6,7 +6,7 @@ composite actions own implementation details.
 ## Apple Silicon builds in the einaralex fork
 
 `apple-silicon-download.yml` builds an unsigned arm64 DMG on GitHub's hosted
-`macos-15` runner for pull requests to `main`. After a push or merge to `main`,
+`macos-26` runner for pull requests to `main`. After a push or merge to `main`,
 it publishes the verified DMG as the fork's latest GitHub Release. The direct
 download URL is
 `https://github.com/einaralex/rbxporteng/releases/latest/download/rbxport-apple-silicon.dmg`.

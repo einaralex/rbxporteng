@@ -6,7 +6,7 @@
 
 This fork publishes an unsigned Apple Silicon DMG from every push to `main`
 through `.github/workflows/apple-silicon-download.yml`. The build uses a
-GitHub-hosted `macos-15` runner, verifies its arm64 binary and DMG, and creates
+GitHub-hosted `macos-26` runner, verifies its arm64 binary and DMG, and creates
 a release tagged with that commit. The newest successful main build is marked
 as the [latest release](https://github.com/einaralex/rbxporteng/releases/latest).
 The app links there for manual updates; the upstream automatic updater is not
