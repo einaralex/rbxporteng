@@ -24,6 +24,9 @@ permissions:
 
 jobs:
   reconcile:
+    # This upstream support workflow checks out dev and uses its Discord bot.
+    # The fork has only main and does not run the upstream support service.
+    if: github.repository != 'einaralex/rbxporteng'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
