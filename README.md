@@ -45,10 +45,22 @@ separate busy stage; cancellation is unavailable during that stage.
 
 The integration tests use disposable directories. The ignored
 `bundled_engine_prepares_a_disposable_rekordbox_export` test also runs the
-installed OfflineAnalyzer on generated click tracks across three exports: first,
+installed OfflineAnalyzer on four generated click tracks across three exports: first,
 added-track, and removed-track. It passed locally with
 Engine DJ Desktop 5.1.0.2acfe893c4. These checks do not establish playback
 compatibility on Engine DJ hardware.
+
+### Try the parallel Engine export locally
+
+Install Node 24, pnpm 10.17.1, Rust, and Engine DJ, then run `pnpm install`
+and `pnpm tauri build --bundles app` from the repository root. Open
+`target/release/bundle/macos/rbxport.app`. The bundled
+helper analyzes up to four tracks concurrently. Use a disposable USB with a
+modern OneLibrary export, or back up its contents first. In Preferences → USB
+Export, enable **Prepare USB for Engine DJ after export** and leave the external
+helper field blank. Export a playlist with at least four tracks, wait for the
+Engine preparation stage to finish, and check the result in Engine DJ or on a
+player. Repeat the export after adding or removing a track to exercise refresh.
 
 ## Project vision
 
