@@ -2547,7 +2547,7 @@ fn missing_engine_helper_rejects_export_before_writing_usb() {
 }
 
 /// Exercises the bundled Rust path with the locally installed Engine DJ
-/// analyzer and a disposable, generated 120 BPM WAV. No installed library or
+/// analyzer and four disposable, generated 120 BPM WAVs. No installed library or
 /// physical USB is read or written.
 #[test]
 #[ignore = "requires Engine DJ Desktop's OfflineAnalyzer on macOS"]
@@ -2570,13 +2570,23 @@ fn bundled_engine_prepares_a_disposable_rekordbox_export() {
     let imported = run(commands::import_files(s.handle(), s.state(), vec![audio.display().to_string()])).unwrap();
     run(commands::create_playlist(s.handle(), s.state(), "Engine click".into(), ROOT.into(), None)).unwrap();
     let playlist = run(commands::playlist_tree(s.state())).unwrap().into_iter().find(|p| p.name == "Engine click").unwrap().id;
-    run(commands::add_tracks_to_playlist(s.handle(), s.state(), playlist.clone(), vec![imported.tracks[0].id.clone()], None)).unwrap();
+    let mut track_ids = vec![imported.tracks[0].id.clone()];
+    for index in 2..=4 {
+        let next_audio = s._dir.path().join(format!("Generated click {index}.wav"));
+        let mut next_bytes = std::fs::read(&audio).unwrap();
+        let offset = 44 + index * RATE as usize * 4;
+        next_bytes[offset..offset + 2].copy_from_slice(&(index as i16 * 1000).to_le_bytes());
+        std::fs::write(&next_audio, next_bytes).unwrap();
+        let next = run(commands::import_files(s.handle(), s.state(), vec![next_audio.display().to_string()])).unwrap();
+        track_ids.push(next.tracks[0].id.clone());
+    }
+    run(commands::add_tracks_to_playlist(s.handle(), s.state(), playlist.clone(), track_ids, None)).unwrap();
     let stick = tempfile::tempdir().unwrap();
     let result = run(commands::export_playlist(s.handle(), s.state(), playlist.clone(), stick.path().display().to_string(), None, None, None, Some(String::new())));
     assert!(result.is_ok(), "{}", result.err().map_or_else(String::new, |e| e.full_message()));
     let report = rekordbox_to_engine::engine::verify_engine(stick.path()).unwrap();
     assert!(report.ok);
-    assert_eq!(report.tracks, 1);
+    assert_eq!(report.tracks, 4);
     let second_audio = s._dir.path().join("Second generated click.wav");
     std::fs::copy(&audio, &second_audio).unwrap();
     let second = run(commands::import_files(s.handle(), s.state(), vec![second_audio.display().to_string()])).unwrap();
@@ -2585,12 +2595,12 @@ fn bundled_engine_prepares_a_disposable_rekordbox_export() {
     assert!(result.is_ok(), "{}", result.err().map_or_else(String::new, |e| e.full_message()));
     let refreshed = rekordbox_to_engine::engine::verify_engine(stick.path()).unwrap();
     assert!(refreshed.ok);
-    assert_eq!(refreshed.tracks, 2);
+    assert_eq!(refreshed.tracks, 5);
 
     run(commands::remove_tracks_from_playlist(s.handle(), s.state(), playlist.clone(), vec![imported.tracks[0].id.clone()])).unwrap();
     let result = run(commands::export_playlist(s.handle(), s.state(), playlist, stick.path().display().to_string(), None, None, None, Some(String::new())));
     assert!(result.is_ok(), "{}", result.err().map_or_else(String::new, |e| e.full_message()));
     let refreshed = rekordbox_to_engine::engine::verify_engine(stick.path()).unwrap();
     assert!(refreshed.ok);
-    assert_eq!(refreshed.tracks, 1);
+    assert_eq!(refreshed.tracks, 4);
 }

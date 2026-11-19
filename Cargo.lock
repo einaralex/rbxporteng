@@ -4307,7 +4307,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 [[package]]
 name = "rekordbox-to-engine"
 version = "0.1.0"
-source = "git+https://github.com/einaralex/rb-engine?rev=2f52edbdc67e300208bacf4c8eab7ceae4513f8c#2f52edbdc67e300208bacf4c8eab7ceae4513f8c"
+source = "git+https://github.com/einaralex/rb-engine?rev=7c68cb0ae9cd4f0085505b2c8f1106aff07ce941#7c68cb0ae9cd4f0085505b2c8f1106aff07ce941"
 dependencies = [
  "anyhow",
  "crc32fast",
@@ -5894,7 +5894,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
